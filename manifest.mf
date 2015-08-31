@@ -1,0 +1,105 @@
+#include <SoftwareSerial.h>
+#include <GPS.h>
+#include <Wire.h>
+#include <TRN.h>
+#define ALT_ADDRESS (0x75)
+#define I2C_WRITE_BIT (0x00)
+#define I2C_READ_BIT (0x01)
+#define RABUFSIZE 10
+
+int altitude=0;
+
+int raa[RABUFSIZE], rac = 0;
+
+SoftwareSerial altSerial=SoftwareSerial(3,0,true);
+void setup()
+{
+  GPSInit();
+  Serial.begin(38400);
+  altSerial.begin(9600);
+  pinMode(5, OUTPUT);
+  pinMode(6, INPUT);
+  pinMode(A3,INPUT);
+  pinMode(3,INPUT);
+  Wire.begin();
+  TRNInit();
+}
+int IAS, RA;
+void loop()
+{
+  //process();
+  //printBuffer();
+  //Serial.println(getAirspeed());
+  IAS = getAirspeed();
+  RA = getRange();
+  Serial.println(RA);
+  //TRNsend(0x11, IAS);
+  delay(10);
+  TRNsend(0x13, RA);
+  delay(50);
+  //Serial.println(getRange());
+}
+
+int getAltitude()
+{
+  if(altSerial.available()>5)
+  {
+    if(altSerial.read()==0x5E)
+    {
+      if(altSerial.peek()==0x5E)
+      {
+        altSerial.read(); 
+      }
+      if(altSerial.read()==0x10)
+      {
+         int low=altSerial.read();
+         int high=altSerial.read()<<8;
+         return high+low;
+      }
+    }
+  }
+}
+
+int getRange()
+{
+  digitalWrite(5, LOW);
+  delayMicroseconds(2);
+  digitalWrite(5, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(5, LOW);
+  int v = pulseIn(6,HIGH);
+  
+  raa[++rac%RABUFSIZE] = v;
+  unsigned int s = 0;
+  for (int i = 0; i < RABUFSIZE; i++)
+  {
+    s += raa[i];
+  }
+  return s/RABUFSIZE;
+}
+
+int getAirspeed(){
+int data = 0;
+Wire.beginTransmission(ALT_ADDRESS);
+Wire.write(I2C_WRITE_BIT);
+Wire.endTransmission();
+
+Wire.beginTransmission(ALT_ADDRESS);
+Wire.write(0x07);
+Wire.endTransmission();
+
+
+//Wire.requestFrom(ALT_ADDRESS,2);
+//bitavailable = Wire.available();
+//data = Wire.receive();
+
+Wire.requestFrom(ALT_ADDRESS,2);
+if (Wire.available()) {
+data = Wire.read();
+}
+if (Wire.available()) {
+data |=Wire.read() << 8;
+}
+return data;
+
+}
